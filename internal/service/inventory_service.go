@@ -9,6 +9,7 @@ import (
 	"indico-test-be/internal/config"
 	"indico-test-be/internal/model"
 	"indico-test-be/internal/repository"
+	ws "indico-test-be/internal/websocket"
 
 	"github.com/google/uuid"
 )
@@ -27,6 +28,7 @@ type inventoryService struct {
 	transactor      repository.Transactor
 	itemRepo        repository.ItemRepository
 	reservationRepo repository.ReservationRepository
+	hub             *ws.Hub
 }
 
 func NewInventoryService(
@@ -34,12 +36,24 @@ func NewInventoryService(
 	transactor repository.Transactor,
 	itemRepo repository.ItemRepository,
 	reservationRepo repository.ReservationRepository,
+	hub *ws.Hub,
 ) InventoryService {
 	return &inventoryService{
 		cfg:             cfg,
 		transactor:      transactor,
 		itemRepo:        itemRepo,
 		reservationRepo: reservationRepo,
+		hub:             hub,
+	}
+}
+
+func (s *inventoryService) broadcastItemStock(ctx context.Context, itemID string) {
+	if s.hub == nil {
+		return
+	}
+	stock, err := s.GetStock(ctx, itemID)
+	if err == nil && stock != nil {
+		s.hub.BroadcastStock(*stock)
 	}
 }
 
@@ -99,17 +113,22 @@ func (s *inventoryService) ReserveStock(ctx context.Context, req *model.ReserveR
 		return nil, err
 	}
 
+	s.broadcastItemStock(ctx, req.ItemID)
+
 	return resResponse, nil
 }
 
 func (s *inventoryService) ConfirmReservation(ctx context.Context, req *model.ConfirmRequest) (*model.ConfirmResponse, error) {
 	var confirmResp *model.ConfirmResponse
+	var itemID string
 
 	err := s.transactor.ExecTx(ctx, func(tx *sql.Tx) error {
 		res, err := s.reservationRepo.FindByIDWithLock(ctx, tx, req.ReservationID)
 		if err != nil {
 			return err
 		}
+
+		itemID = res.ItemID
 
 		if res.Status == model.StatusConfirmed {
 			return model.ErrReservationAlreadyConfirmed
@@ -149,6 +168,10 @@ func (s *inventoryService) ConfirmReservation(ctx context.Context, req *model.Co
 
 	if err != nil {
 		return nil, err
+	}
+
+	if itemID != "" {
+		s.broadcastItemStock(ctx, itemID)
 	}
 
 	return confirmResp, nil
@@ -219,6 +242,15 @@ func (s *inventoryService) CleanupExpiredReservations(ctx context.Context) (int6
 		count, err = s.reservationRepo.ExpireBatch(ctx, tx, 100)
 		return err
 	})
+
+	if count > 0 {
+		items, err := s.GetAllItems(ctx)
+		if err == nil && s.hub != nil {
+			for _, item := range items {
+				s.hub.BroadcastStock(item)
+			}
+		}
+	}
 
 	return count, err
 }

@@ -8,6 +8,7 @@ A production-ready Go backend service designed for high-concurrency flash-sale s
 
 * **Concurrency Control:** Pessimistic row-level locking (`SELECT ... FOR UPDATE`) in PostgreSQL prevents race conditions under high concurrent traffic.
 * **Database Driver:** Native Go `database/sql` with `github.com/lib/pq` driver (No ORM).
+* **Real-time Stock Updates:** WebSocket hub (`ws://localhost:8080/ws/stock`) broadcasts live stock updates to all connected Frontend clients whenever stock changes.
 * **Automatic Expiration:** Reservations expire after 5 minutes. Locked stock is released lazily on check/confirm and periodically via a background worker (`FOR UPDATE SKIP LOCKED`).
 * **API Documentation:** Interactive Swagger UI served at `/docs` and raw OpenAPI spec at `/swagger.json`.
 * **CORS Enabled:** Cross-Origin Resource Sharing middleware included for frontend integration.
@@ -18,6 +19,7 @@ A production-ready Go backend service designed for high-concurrency flash-sale s
 
 * **Language:** Go 1.24+
 * **Framework:** Gin (`github.com/gin-gonic/gin`)
+* **Real-Time:** Gorilla WebSocket (`github.com/gorilla/websocket`)
 * **Database:** PostgreSQL 15+
 * **Migrations:** `golang-migrate` (`github.com/golang-migrate/migrate/v4`)
 * **Hot Reload:** Air (`github.com/air-verse/air`)
@@ -39,6 +41,7 @@ A production-ready Go backend service designed for high-concurrency flash-sale s
 │   ├── repository/               # SQL queries & transaction runner
 │   ├── routes/                   # Route registration
 │   ├── service/                  # Business logic & concurrency transactions
+│   ├── websocket/                # WebSocket Hub & real-time stock broadcaster
 │   └── worker/                   # Background reservation cleanup worker
 ├── migrations/                   # SQL migration scripts
 ├── docs/                         # OpenAPI specification & Postman collection
@@ -140,6 +143,7 @@ make run
 
 | Method | Endpoint | Description |
 |---|---|---|
+| `GET` | `/ws/stock` | Real-time WebSocket endpoint for live stock updates |
 | `GET` | `/api/v1/inventory/items` | Get list of all available items (for frontend dropdowns) |
 | `GET` | `/api/v1/inventory/items/:id` | Get single item detail |
 | `GET` | `/api/v1/inventory/stock?item_id=item_4021` | Check current item stock |

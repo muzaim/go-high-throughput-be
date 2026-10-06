@@ -3,11 +3,12 @@ package routes
 import (
 	"indico-test-be/internal/handler"
 	"indico-test-be/internal/middleware"
+	ws "indico-test-be/internal/websocket"
 
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter(inventoryHandler *handler.InventoryHandler) *gin.Engine {
+func SetupRouter(inventoryHandler *handler.InventoryHandler, hub *ws.Hub) *gin.Engine {
 	r := gin.New()
 
 	r.Use(gin.Logger())
@@ -45,6 +46,10 @@ func SetupRouter(inventoryHandler *handler.InventoryHandler) *gin.Engine {
 		c.Header("Content-Type", "text/html; charset=utf-8")
 		c.String(200, html)
 	})
+
+	if hub != nil {
+		r.GET("/ws/stock", hub.HandleWS)
+	}
 
 	api := r.Group("/api/v1/inventory")
 	{

@@ -16,6 +16,7 @@ import (
 	"indico-test-be/internal/repository"
 	"indico-test-be/internal/routes"
 	"indico-test-be/internal/service"
+	ws "indico-test-be/internal/websocket"
 	"indico-test-be/internal/worker"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -39,10 +40,13 @@ func main() {
 	itemRepo := repository.NewItemRepository(db.GetDB())
 	reservationRepo := repository.NewReservationRepository(db.GetDB())
 
-	inventoryService := service.NewInventoryService(cfg, db, itemRepo, reservationRepo)
+	hub := ws.NewHub()
+	go hub.Run()
+
+	inventoryService := service.NewInventoryService(cfg, db, itemRepo, reservationRepo, hub)
 
 	inventoryHandler := handler.NewInventoryHandler(inventoryService)
-	router := routes.SetupRouter(inventoryHandler)
+	router := routes.SetupRouter(inventoryHandler, hub)
 
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()
