@@ -1,0 +1,324 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "High-Concurrency Flash Sale Inventory Reservation API",
+    "description": "API documentation for production-quality high-concurrency inventory reservation microservice.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local Development Server"
+    }
+  ],
+  "paths": {
+    "/api/v1/inventory/items": {
+      "get": {
+        "summary": "Get all available items",
+        "description": "Retrieves list of all items with their item_id, name, total_stock, reserved_stock, and available_stock for frontend combobox population.",
+        "operationId": "getAllItems",
+        "responses": {
+          "200": {
+            "description": "List of items retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemListResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "items": [
+                    {
+                      "item_id": "item_4021",
+                      "name": "Flash Sale Smartphone X",
+                      "total_stock": 100,
+                      "reserved_stock": 15,
+                      "available_stock": 85
+                    },
+                    {
+                      "item_id": "item_4022",
+                      "name": "Limited Edition Wireless Earbuds",
+                      "total_stock": 50,
+                      "reserved_stock": 0,
+                      "available_stock": 50
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/reserve": {
+      "post": {
+        "summary": "Reserve inventory stock",
+        "description": "Atomically reserves inventory in PostgreSQL for a user if sufficient available stock exists. Reservation automatically expires after 5 minutes unless confirmed.",
+        "operationId": "reserveStock",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReserveRequest"
+              },
+              "example": {
+                "user_id": "usr_9981",
+                "item_id": "item_4021",
+                "quantity": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stock successfully reserved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReserveResponse"
+                },
+                "example": {
+                  "status": "success",
+                  "reservation_id": "res_883291-a1b2-c3d4",
+                  "item_id": "item_4021",
+                  "quantity": 2,
+                  "expires_at": "2026-07-20T16:35:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or bad input error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Insufficient inventory conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/confirm": {
+      "post": {
+        "summary": "Confirm reservation",
+        "description": "Permanently commits an active reservation in PostgreSQL, completing the order process and decrementing total physical inventory.",
+        "operationId": "confirmReservation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reservation successfully confirmed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inventory/stock": {
+      "get": {
+        "summary": "Check item inventory stock",
+        "description": "Retrieves the current total, reserved, and available inventory stock for a given item ID.",
+        "operationId": "getStock",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "query",
+            "required": true,
+            "description": "Unique item identifier",
+            "schema": {
+              "type": "string"
+            },
+            "example": "item_4021"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current stock information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ItemListResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StockResponse"
+            }
+          }
+        }
+      },
+      "ReserveRequest": {
+        "type": "object",
+        "required": ["user_id", "item_id", "quantity"],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "example": "usr_9981"
+          },
+          "item_id": {
+            "type": "string",
+            "example": "item_4021"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 2
+          }
+        }
+      },
+      "ReserveResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "reservation_id": {
+            "type": "string",
+            "example": "res_883291-a1b2-c3d4"
+          },
+          "item_id": {
+            "type": "string",
+            "example": "item_4021"
+          },
+          "quantity": {
+            "type": "integer",
+            "example": 2
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-07-20T16:35:00Z"
+          }
+        }
+      },
+      "ConfirmRequest": {
+        "type": "object",
+        "required": ["reservation_id"],
+        "properties": {
+          "reservation_id": {
+            "type": "string",
+            "example": "res_883291-a1b2-c3d4"
+          }
+        }
+      },
+      "ConfirmResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "success"
+          },
+          "reservation_id": {
+            "type": "string",
+            "example": "res_883291-a1b2-c3d4"
+          },
+          "confirmed_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-07-20T16:32:00Z"
+          }
+        }
+      },
+      "StockResponse": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "example": "item_4021"
+          },
+          "name": {
+            "type": "string",
+            "example": "Flash Sale Smartphone X"
+          },
+          "total_stock": {
+            "type": "integer",
+            "example": 100
+          },
+          "reserved_stock": {
+            "type": "integer",
+            "example": 15
+          },
+          "available_stock": {
+            "type": "integer",
+            "example": 85
+          }
+        }
+      },
+      "APIError": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "error"
+          },
+          "code": {
+            "type": "string",
+            "example": "INSUFFICIENT_STOCK"
+          },
+          "message": {
+            "type": "string",
+            "example": "insufficient inventory"
+          },
+          "details": {
+            "type": "object",
+            "nullable": true,
+            "example": null
+          }
+        }
+      }
+    }
+  }
+}
