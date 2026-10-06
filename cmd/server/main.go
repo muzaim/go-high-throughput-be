@@ -11,13 +11,12 @@ import (
 	"syscall"
 	"time"
 
+	"indico-test-be/internal/broker"
 	"indico-test-be/internal/config"
 	"indico-test-be/internal/handler"
-	"indico-test-be/internal/model"
 	"indico-test-be/internal/repository"
 	"indico-test-be/internal/routes"
 	"indico-test-be/internal/service"
-	ws "indico-test-be/internal/websocket"
 	"indico-test-be/internal/worker"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -41,17 +40,12 @@ func main() {
 	itemRepo := repository.NewItemRepository(db.GetDB())
 	reservationRepo := repository.NewReservationRepository(db.GetDB())
 
-	hub := ws.NewHub()
-	go hub.Run()
+	sseBroker := broker.NewSSEBroker()
 
-	inventoryService := service.NewInventoryService(cfg, db, itemRepo, reservationRepo, hub)
+	inventoryService := service.NewInventoryService(cfg, db, itemRepo, reservationRepo, sseBroker)
 
-	hub.SetItemFetcher(func() ([]model.StockResponse, error) {
-		return inventoryService.GetAllItems(context.Background())
-	})
-
-	inventoryHandler := handler.NewInventoryHandler(inventoryService)
-	router := routes.SetupRouter(inventoryHandler, hub)
+	inventoryHandler := handler.NewInventoryHandler(inventoryService, sseBroker)
+	router := routes.SetupRouter(inventoryHandler)
 
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()

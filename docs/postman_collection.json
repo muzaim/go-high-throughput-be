@@ -2,12 +2,44 @@
   "info": {
     "_postman_id": "a9b8c7d6-e5f4-4a3b-8c2d-1e2f3a4b5c6d",
     "name": "Flash Sale Inventory Reservation API",
-    "description": "Postman collection for High-Concurrency Flash Sale Inventory Reservation Microservice.",
+    "description": "Postman collection for High-Concurrency Flash Sale Inventory Reservation Microservice with Server-Sent Events (SSE).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "1. Reserve Stock",
+      "name": "1. SSE Inventory Stream",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "text/event-stream"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/inventory/stream?item_id={{item_id}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "inventory",
+            "stream"
+          ],
+          "query": [
+            {
+              "key": "item_id",
+              "value": "{{item_id}}"
+            }
+          ]
+        },
+        "description": "Server-Sent Events (SSE) stream for live inventory update notifications."
+      },
+      "response": []
+    },
+    {
+      "name": "2. Reserve Stock",
       "event": [
         {
           "listen": "test",
@@ -54,7 +86,7 @@
       "response": []
     },
     {
-      "name": "2. Confirm Reservation",
+      "name": "3. Confirm Reservation",
       "request": {
         "method": "POST",
         "header": [
@@ -84,7 +116,7 @@
       "response": []
     },
     {
-      "name": "3. Check Inventory Stock",
+      "name": "4. Check Inventory Stock",
       "request": {
         "method": "GET",
         "header": [],
@@ -111,7 +143,7 @@
       "response": []
     },
     {
-      "name": "4. Reserve Stock - Insufficient Stock Error",
+      "name": "5. Reserve Stock - Insufficient Stock Error",
       "request": {
         "method": "POST",
         "header": [

@@ -80,9 +80,10 @@ func setupTestDB(t *testing.T) (*sql.DB, repository.Transactor, repository.ItemR
 	transactor := repository.NewDBFromSQLDB(db)
 	itemRepo := repository.NewItemRepository(db)
 	resRepo := repository.NewReservationRepository(db)
-	svc := service.NewInventoryService(cfg, transactor, itemRepo, resRepo, nil)
-	h := handler.NewInventoryHandler(svc)
-	router := routes.SetupRouter(h, nil)
+	sseBroker := broker.NewSSEBroker()
+	svc := service.NewInventoryService(cfg, transactor, itemRepo, resRepo, sseBroker)
+	h := handler.NewInventoryHandler(svc, sseBroker)
+	router := routes.SetupRouter(h)
 
 	return db, transactor, itemRepo, resRepo, svc, router
 }

@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"indico-test-be/internal/broker"
 	"indico-test-be/internal/config"
 	"indico-test-be/internal/model"
 	"indico-test-be/internal/repository"
-	ws "indico-test-be/internal/websocket"
 
 	"github.com/google/uuid"
 )
@@ -28,7 +28,7 @@ type inventoryService struct {
 	transactor      repository.Transactor
 	itemRepo        repository.ItemRepository
 	reservationRepo repository.ReservationRepository
-	hub             *ws.Hub
+	broker          broker.SSEBroker
 }
 
 func NewInventoryService(
@@ -36,24 +36,14 @@ func NewInventoryService(
 	transactor repository.Transactor,
 	itemRepo repository.ItemRepository,
 	reservationRepo repository.ReservationRepository,
-	hub *ws.Hub,
+	broker broker.SSEBroker,
 ) InventoryService {
 	return &inventoryService{
 		cfg:             cfg,
 		transactor:      transactor,
 		itemRepo:        itemRepo,
 		reservationRepo: reservationRepo,
-		hub:             hub,
-	}
-}
-
-func (s *inventoryService) broadcastItemStock(ctx context.Context, itemID string) {
-	if s.hub == nil {
-		return
-	}
-	stock, err := s.GetStock(ctx, itemID)
-	if err == nil && stock != nil {
-		s.hub.BroadcastStock(*stock)
+		broker:          broker,
 	}
 }
 
@@ -113,7 +103,9 @@ func (s *inventoryService) ReserveStock(ctx context.Context, req *model.ReserveR
 		return nil, err
 	}
 
-	s.broadcastItemStock(ctx, req.ItemID)
+	if s.broker != nil {
+		s.broker.Publish(req.ItemID)
+	}
 
 	return resResponse, nil
 }
@@ -140,6 +132,9 @@ func (s *inventoryService) ConfirmReservation(ctx context.Context, req *model.Co
 			if res.Status == model.StatusActive {
 				_ = s.reservationRepo.UpdateStatus(ctx, tx, res.ID, model.StatusExpired, nil)
 				_ = s.itemRepo.ReleaseReservedStock(ctx, tx, res.ItemID, res.Quantity)
+				if s.broker != nil {
+					s.broker.Publish(res.ItemID)
+				}
 			}
 			return model.ErrReservationExpired
 		}
@@ -170,8 +165,8 @@ func (s *inventoryService) ConfirmReservation(ctx context.Context, req *model.Co
 		return nil, err
 	}
 
-	if itemID != "" {
-		s.broadcastItemStock(ctx, itemID)
+	if s.broker != nil && itemID != "" {
+		s.broker.Publish(itemID)
 	}
 
 	return confirmResp, nil
@@ -243,11 +238,11 @@ func (s *inventoryService) CleanupExpiredReservations(ctx context.Context) (int6
 		return err
 	})
 
-	if count > 0 {
+	if count > 0 && s.broker != nil {
 		items, err := s.GetAllItems(ctx)
-		if err == nil && s.hub != nil {
+		if err == nil {
 			for _, item := range items {
-				s.hub.BroadcastStock(item)
+				s.broker.Publish(item.ItemID)
 			}
 		}
 	}
