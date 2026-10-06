@@ -21,7 +21,7 @@ func NewSSEBroker() SSEBroker {
 }
 
 func (b *sseBroker) Subscribe(itemID string) (<-chan string, func()) {
-	ch := make(chan string, 10)
+	ch := make(chan string, 50)
 
 	b.mu.Lock()
 	if b.subscribers[itemID] == nil {
@@ -41,7 +41,6 @@ func (b *sseBroker) Subscribe(itemID string) (<-chan string, func()) {
 				}
 			}
 			b.mu.Unlock()
-			close(ch)
 		})
 	}
 
@@ -50,14 +49,19 @@ func (b *sseBroker) Subscribe(itemID string) (<-chan string, func()) {
 
 func (b *sseBroker) Publish(itemID string) {
 	b.mu.RLock()
-	defer b.mu.RUnlock()
-
 	subMap, ok := b.subscribers[itemID]
 	if !ok || len(subMap) == 0 {
+		b.mu.RUnlock()
 		return
 	}
 
+	channels := make([]chan string, 0, len(subMap))
 	for ch := range subMap {
+		channels = append(channels, ch)
+	}
+	b.mu.RUnlock()
+
+	for _, ch := range channels {
 		select {
 		case ch <- itemID:
 		default:
