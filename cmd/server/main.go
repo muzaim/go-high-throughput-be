@@ -13,6 +13,7 @@ import (
 
 	"indico-test-be/internal/config"
 	"indico-test-be/internal/handler"
+	"indico-test-be/internal/model"
 	"indico-test-be/internal/repository"
 	"indico-test-be/internal/routes"
 	"indico-test-be/internal/service"
@@ -44,6 +45,10 @@ func main() {
 	go hub.Run()
 
 	inventoryService := service.NewInventoryService(cfg, db, itemRepo, reservationRepo, hub)
+
+	hub.SetItemFetcher(func() ([]model.StockResponse, error) {
+		return inventoryService.GetAllItems(context.Background())
+	})
 
 	inventoryHandler := handler.NewInventoryHandler(inventoryService)
 	router := routes.SetupRouter(inventoryHandler, hub)

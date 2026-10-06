@@ -11,11 +11,19 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type WSMessage struct {
+	Event string              `json:"event"`
+	Data  model.StockResponse `json:"data"`
+}
+
+type ItemFetcherFunc func() ([]model.StockResponse, error)
+
 type Hub struct {
-	clients   map[*websocket.Conn]bool
-	broadcast chan model.StockResponse
-	mu        sync.Mutex
-	upgrader  websocket.Upgrader
+	clients     map[*websocket.Conn]bool
+	broadcast   chan model.StockResponse
+	mu          sync.Mutex
+	upgrader    websocket.Upgrader
+	itemFetcher ItemFetcherFunc
 }
 
 func NewHub() *Hub {
@@ -30,8 +38,17 @@ func NewHub() *Hub {
 	}
 }
 
+func (h *Hub) SetItemFetcher(fetcher ItemFetcherFunc) {
+	h.itemFetcher = fetcher
+}
+
 func (h *Hub) Run() {
-	for msg := range h.broadcast {
+	for stock := range h.broadcast {
+		msg := WSMessage{
+			Event: "STOCK_UPDATED",
+			Data:  stock,
+		}
+
 		h.mu.Lock()
 		for client := range h.clients {
 			err := client.WriteJSON(msg)
@@ -55,6 +72,18 @@ func (h *Hub) HandleWS(c *gin.Context) {
 	h.mu.Lock()
 	h.clients[conn] = true
 	h.mu.Unlock()
+
+	if h.itemFetcher != nil {
+		items, err := h.itemFetcher()
+		if err == nil {
+			for _, item := range items {
+				_ = conn.WriteJSON(WSMessage{
+					Event: "STOCK_UPDATED",
+					Data:  item,
+				})
+			}
+		}
+	}
 
 	defer func() {
 		h.mu.Lock()
