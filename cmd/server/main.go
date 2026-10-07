@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"indico-test-be/internal/broker"
 	"indico-test-be/internal/config"
 	"indico-test-be/internal/handler"
 	"indico-test-be/internal/repository"
@@ -40,11 +39,9 @@ func main() {
 	itemRepo := repository.NewItemRepository(db.GetDB())
 	reservationRepo := repository.NewReservationRepository(db.GetDB())
 
-	sseBroker := broker.NewSSEBroker()
+	inventoryService := service.NewInventoryService(cfg, db, itemRepo, reservationRepo)
 
-	inventoryService := service.NewInventoryService(cfg, db, itemRepo, reservationRepo, sseBroker)
-
-	inventoryHandler := handler.NewInventoryHandler(inventoryService, sseBroker)
+	inventoryHandler := handler.NewInventoryHandler(inventoryService)
 	router := routes.SetupRouter(inventoryHandler)
 
 	workerCtx, workerCancel := context.WithCancel(context.Background())

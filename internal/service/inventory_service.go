@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"indico-test-be/internal/broker"
 	"indico-test-be/internal/config"
 	"indico-test-be/internal/model"
 	"indico-test-be/internal/repository"
@@ -28,7 +27,6 @@ type inventoryService struct {
 	transactor      repository.Transactor
 	itemRepo        repository.ItemRepository
 	reservationRepo repository.ReservationRepository
-	broker          broker.SSEBroker
 }
 
 func NewInventoryService(
@@ -36,14 +34,12 @@ func NewInventoryService(
 	transactor repository.Transactor,
 	itemRepo repository.ItemRepository,
 	reservationRepo repository.ReservationRepository,
-	broker broker.SSEBroker,
 ) InventoryService {
 	return &inventoryService{
 		cfg:             cfg,
 		transactor:      transactor,
 		itemRepo:        itemRepo,
 		reservationRepo: reservationRepo,
-		broker:          broker,
 	}
 }
 
@@ -103,24 +99,17 @@ func (s *inventoryService) ReserveStock(ctx context.Context, req *model.ReserveR
 		return nil, err
 	}
 
-	if s.broker != nil {
-		s.broker.Publish(req.ItemID)
-	}
-
 	return resResponse, nil
 }
 
 func (s *inventoryService) ConfirmReservation(ctx context.Context, req *model.ConfirmRequest) (*model.ConfirmResponse, error) {
 	var confirmResp *model.ConfirmResponse
-	var itemID string
 
 	err := s.transactor.ExecTx(ctx, func(tx *sql.Tx) error {
 		res, err := s.reservationRepo.FindByIDWithLock(ctx, tx, req.ReservationID)
 		if err != nil {
 			return err
 		}
-
-		itemID = res.ItemID
 
 		if res.Status == model.StatusConfirmed {
 			return model.ErrReservationAlreadyConfirmed
@@ -132,9 +121,6 @@ func (s *inventoryService) ConfirmReservation(ctx context.Context, req *model.Co
 			if res.Status == model.StatusActive {
 				_ = s.reservationRepo.UpdateStatus(ctx, tx, res.ID, model.StatusExpired, nil)
 				_ = s.itemRepo.ReleaseReservedStock(ctx, tx, res.ItemID, res.Quantity)
-				if s.broker != nil {
-					s.broker.Publish(res.ItemID)
-				}
 			}
 			return model.ErrReservationExpired
 		}
@@ -163,10 +149,6 @@ func (s *inventoryService) ConfirmReservation(ctx context.Context, req *model.Co
 
 	if err != nil {
 		return nil, err
-	}
-
-	if s.broker != nil && itemID != "" {
-		s.broker.Publish(itemID)
 	}
 
 	return confirmResp, nil
@@ -237,15 +219,6 @@ func (s *inventoryService) CleanupExpiredReservations(ctx context.Context) (int6
 		count, err = s.reservationRepo.ExpireBatch(ctx, tx, 100)
 		return err
 	})
-
-	if count > 0 && s.broker != nil {
-		items, err := s.GetAllItems(ctx)
-		if err == nil {
-			for _, item := range items {
-				s.broker.Publish(item.ItemID)
-			}
-		}
-	}
 
 	return count, err
 }

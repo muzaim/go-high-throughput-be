@@ -8,7 +8,8 @@ A production-ready Go backend service designed for high-concurrency flash-sale s
 
 * **Concurrency Control:** Pessimistic row-level locking (`SELECT ... FOR UPDATE`) in PostgreSQL prevents race conditions under high concurrent traffic.
 * **Database Driver:** Native Go `database/sql` with `github.com/lib/pq` driver (No ORM).
-* **Real-time Inventory Notifications (SSE):** Server-Sent Events broker (`GET /api/v1/inventory/stream?item_id=item_4022`) notifies subscribed clients when inventory changes after successful PostgreSQL transaction commits.
+* **Concurrency Control:** Pessimistic row-level locking (`SELECT ... FOR UPDATE`) in PostgreSQL prevents race conditions under high concurrent traffic.
+* **Database Driver:** Native Go `database/sql` with `github.com/lib/pq` driver (No ORM).
 * **Automatic Expiration:** Reservations expire after 5 minutes. Locked stock is released lazily on check/confirm and periodically via a background worker (`FOR UPDATE SKIP LOCKED`).
 * **API Documentation:** Interactive Swagger UI served at `/docs` and raw OpenAPI spec at `/swagger.json`.
 * **CORS Enabled:** Cross-Origin Resource Sharing middleware included for frontend integration.
@@ -19,7 +20,6 @@ A production-ready Go backend service designed for high-concurrency flash-sale s
 
 * **Language:** Go 1.24+
 * **Framework:** Gin (`github.com/gin-gonic/gin`)
-* **Real-Time Streaming:** Server-Sent Events (SSE)
 * **Database:** PostgreSQL 15+
 * **Migrations:** `golang-migrate` (`github.com/golang-migrate/migrate/v4`)
 * **Hot Reload:** Air (`github.com/air-verse/air`)
@@ -34,7 +34,6 @@ A production-ready Go backend service designed for high-concurrency flash-sale s
 ├── cmd/
 │   └── server/main.go            # Application entrypoint & graceful shutdown
 ├── internal/
-│   ├── broker/                   # In-process SSE event broker & tests
 │   ├── config/                   # Environment loader
 │   ├── handler/                  # HTTP controllers (Gin)
 │   ├── middleware/               # Logger, recovery, and CORS middleware
@@ -143,51 +142,12 @@ make run
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/v1/inventory/stream?item_id=item_4022` | Server-Sent Events stream for live inventory updates |
 | `GET` | `/api/v1/inventory/items` | Get list of all available items (for frontend dropdowns) |
 | `GET` | `/api/v1/inventory/items/:id` | Get single item detail |
-| `GET` | `/api/v1/inventory/stock?item_id=item_4021` | Check current item stock |
+| `GET` | `/api/v1/inventory/stock?item_id=item_4021` | Check current item stock (for manual refresh / polling) |
 | `POST` | `/api/v1/inventory/reserve` | Reserve stock for 5 minutes |
 | `POST` | `/api/v1/inventory/confirm` | Confirm active reservation & commit stock |
 | `GET` | `/health` | Service health check |
-
----
-
-## Server-Sent Events (SSE) Architecture & Flow
-
-PostgreSQL remains the single source of truth for inventory.
-
-```text
-HTTP Request (Reserve/Confirm/Expire)
-    ↓
-Gin Handler
-    ↓
-Service
-    ↓
-PostgreSQL Transaction (SELECT ... FOR UPDATE)
-    ↓
-COMMIT Succeeds
-    ↓
-Publish SSE Event (broker.Publish("item_4022"))
-    ↓
-SSE Subscribers Receive Event:
-event: inventory_updated
-data: {"item_id":"item_4022"}
-
-    ↓
-Frontend Fetches Latest Stock (GET /stock)
-```
-
-### Event Format
-
-```text
-event: inventory_updated
-data: {"item_id":"item_4022"}
-
-```
-
-### Distributed Scaling Note
-This implementation uses an in-process concurrency-safe broker for single-instance scope. If horizontally scaled across multiple instances behind a load balancer, instances can be connected via a shared pub/sub system such as Redis Pub/Sub to propagate events across instances.
 
 ---
 

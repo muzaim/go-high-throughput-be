@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "High-Concurrency Flash Sale Inventory Reservation API",
-    "description": "API documentation for production-quality high-concurrency inventory reservation microservice with Server-Sent Events (SSE).",
+    "description": "API documentation for production-quality high-concurrency inventory reservation microservice.",
     "version": "1.0.0"
   },
   "servers": [
@@ -12,54 +12,6 @@
     }
   ],
   "paths": {
-    "/api/v1/inventory/stream": {
-      "get": {
-        "summary": "Server-Sent Events (SSE) Inventory Stream",
-        "description": "Establishes a persistent SSE connection for a specific item_id. Emits event: inventory_updated when stock changes after successful PostgreSQL transaction commit.",
-        "operationId": "streamInventory",
-        "parameters": [
-          {
-            "name": "item_id",
-            "in": "query",
-            "required": true,
-            "description": "Item ID to subscribe for live inventory update events",
-            "schema": {
-              "type": "string"
-            },
-            "example": "item_4022"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "SSE Event Stream established",
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "type": "string"
-                },
-                "example": "event: inventory_updated\ndata: {\"item_id\":\"item_4022\"}\n\n"
-              }
-            }
-          },
-          "400": {
-            "description": "Missing or invalid item_id parameter",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIError"
-                },
-                "example": {
-                  "status": "error",
-                  "code": "MISSING_ITEM_ID",
-                  "message": "item_id parameter is required",
-                  "details": null
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/inventory/items": {
       "get": {
         "summary": "Get all available items",

@@ -48,7 +48,6 @@ func SetupRouter(inventoryHandler *handler.InventoryHandler) *gin.Engine {
 
 	api := r.Group("/api/v1/inventory")
 	{
-		api.GET("/stream", inventoryHandler.Stream)
 		api.GET("/items", inventoryHandler.GetAllItems)
 		api.GET("/items/:id", inventoryHandler.GetItemDetail)
 		api.POST("/reserve", inventoryHandler.Reserve)
