@@ -112,14 +112,15 @@ For high-throughput scaling:
 * **REST Polling vs. WebSocket/SSE Infrastructure**: Kept backend connections purely stateless with simple HTTP endpoints (`GET /stock`), avoiding the need for sticky sessions or distributed message broker state (like Redis Pub/Sub).
 * **Backend Concurrency Focus vs. Frontend Complexity**: Focused execution on strict transaction handling, row locking, and cleanup workers rather than complex frontend optimistic state logic.
 
-### AI Assistance & Engineering Validation
+### AI Assistance & Engineering Validation (Google Antigravity)
 
-* **Initial AI Suggestion**: During development discussions, an AI tool suggested validating stock in application code before updating:
+* **AI Tool Used**: Google Antigravity was used as the primary AI coding assistant throughout development for code reviews, architectural planning, and refactoring.
+* **Evaluated AI Suggestion**: During early concurrency exploration, an AI code completion suggested validating stock levels in Go application code prior to running the update:
   ```go
   item := repo.FindByID(ctx, itemID)
   if item.AvailableStock() >= qty {
       repo.IncrementReservedStock(ctx, itemID, qty)
   }
   ```
-* **Why It Was Flawed**: This pattern creates a race condition under heavy concurrency. Multiple concurrent requests read the same available stock before any update is saved, leading to overselling.
-* **How It Was Fixed**: Used `SELECT ... FOR UPDATE` inside a PostgreSQL transaction to lock the item row before reading stock levels, ensuring atomic check-and-update behavior.
+* **Why It Was Flawed**: This pattern creates a severe race condition under high concurrent traffic. Multiple requests read the exact same available stock before any update commits, resulting in overselling.
+* **Engineering Validation & Correction**: Replaced application-level checks with pessimistic row-level locking (`SELECT ... FOR UPDATE`) inside an explicit PostgreSQL transaction, backed by `CHECK (reserved_stock <= total_stock)` database constraints.
