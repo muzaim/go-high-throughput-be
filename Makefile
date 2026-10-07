@@ -1,12 +1,12 @@
-include .env
+-include .env
 export
 
 DB_URL=postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
 
 .PHONY: dev run build test test-race migrate-up migrate-down migrate-create migrate-reset docker-up docker-down
 
-dev:
-	@air
+dev: build
+	@./bin/server
 
 run:
 	@go run ./cmd/server
@@ -35,7 +35,7 @@ migrate-create:
 	migrate create -ext sql -dir migrations -seq $$name
 
 docker-up:
-	@docker-compose up -d --build
+	@docker compose up -d --build
 
 docker-down:
-	@docker-compose down -v
+	@docker compose down -v

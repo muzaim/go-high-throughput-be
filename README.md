@@ -8,11 +8,30 @@ A production-ready Go backend service designed for high-concurrency flash-sale s
 
 * **Concurrency Control:** Pessimistic row-level locking (`SELECT ... FOR UPDATE`) in PostgreSQL prevents race conditions under high concurrent traffic.
 * **Database Driver:** Native Go `database/sql` with `github.com/lib/pq` driver (No ORM).
-* **Concurrency Control:** Pessimistic row-level locking (`SELECT ... FOR UPDATE`) in PostgreSQL prevents race conditions under high concurrent traffic.
-* **Database Driver:** Native Go `database/sql` with `github.com/lib/pq` driver (No ORM).
-* **Automatic Expiration:** Reservations expire after 5 minutes. Locked stock is released lazily on check/confirm and periodically via a background worker (`FOR UPDATE SKIP LOCKED`).
+* **Connection Pool Optimization:** Connection pool strictly capped (`MaxOpenConns=25`, `MaxIdleConns=10`) to prevent PostgreSQL connection exhaustion under extreme traffic bursts.
+* **Automatic Expiration:** Reservations expire after 5 minutes. Locked stock is released lazily on check/confirm and periodically via a background worker using `FOR UPDATE SKIP LOCKED`.
+* **Graceful Shutdown:** Intercepts system signals (`SIGINT`, `SIGTERM`) and drains active connections cleanly.
 * **API Documentation:** Interactive Swagger UI served at `/docs` and raw OpenAPI spec at `/swagger.json`.
 * **CORS Enabled:** Cross-Origin Resource Sharing middleware included for frontend integration.
+
+---
+
+## Benchmark Performance Highlights
+
+Tested with **10,000 concurrent requests** against a single PostgreSQL database instance:
+
+```text
+==========================================
+📊 BENCHMARK RESULT SUMMARY
+==========================================
+⏱ Total Time Elapsed : 5.78 seconds
+⚡ Throughput         : 1,729 requests/sec
+------------------------------------------
+✅ Reserved Success   : 100  (100% Stock Accurate)
+⚠️ Insufficient Stock: 9,900 (HTTP 409 Conflict)
+❌ Failed / Errors    : 0    (0% Server Errors)
+==========================================
+```
 
 ---
 
@@ -22,7 +41,6 @@ A production-ready Go backend service designed for high-concurrency flash-sale s
 * **Framework:** Gin (`github.com/gin-gonic/gin`)
 * **Database:** PostgreSQL 15+
 * **Migrations:** `golang-migrate` (`github.com/golang-migrate/migrate/v4`)
-* **Hot Reload:** Air (`github.com/air-verse/air`)
 * **Containerization:** Docker & Docker Compose
 
 ---
@@ -42,9 +60,10 @@ A production-ready Go backend service designed for high-concurrency flash-sale s
 │   ├── routes/                   # Route registration
 │   ├── service/                  # Business logic & concurrency transactions
 │   └── worker/                   # Background reservation cleanup worker
-├── migrations/                   # SQL migration scripts
+├── migrations/                   # SQL migration scripts & seeder
 ├── docs/                         # OpenAPI specification & Postman collection
 ├── tests/                        # Integration and concurrency tests
+├── ARCHITECTURE.md               # Technical architecture & design decisions
 ├── docker-compose.yml
 ├── Dockerfile
 ├── Makefile
@@ -93,7 +112,7 @@ CLEANUP_INTERVAL_SECONDS=10
 
 ### Option A: Using Docker Compose (Recommended)
 
-Run application and PostgreSQL together in containers:
+Run application and PostgreSQL together in containers. Any changes to `.env` are automatically loaded into Docker containers:
 
 ```bash
 docker compose up --build -d
@@ -116,16 +135,10 @@ docker compose down -v
 make migrate-up
 ```
 
-3. Start server with hot-reload:
+3. Build and run server directly:
 
 ```bash
 make dev
-```
-
-Or start standard Go server:
-
-```bash
-make run
 ```
 
 ---

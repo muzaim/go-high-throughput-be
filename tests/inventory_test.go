@@ -259,6 +259,47 @@ func TestConfirmReservation_Expired(t *testing.T) {
 	assert.Equal(t, 0, reservedStock)
 }
 
+func TestConfirmReservation_NotFound(t *testing.T) {
+	_, _, _, _, _, router := setupTestDB(t)
+
+	confirmReq := model.ConfirmRequest{ReservationID: "res_non_existent"}
+	jsonBytes, _ := json.Marshal(confirmReq)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/inventory/confirm", bytes.NewBuffer(jsonBytes))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestConfirmReservation_AlreadyConfirmed(t *testing.T) {
+	db, _, _, _, _, router := setupTestDB(t)
+	if db == nil {
+		return
+	}
+
+	_, err := db.Exec("INSERT INTO items (id, name, total_stock, reserved_stock) VALUES ($1, $2, $3, $4)", "item_test_already_confirmed", "Tablet", 10, 0)
+	require.NoError(t, err)
+
+	now := time.Now().UTC()
+	_, err = db.Exec(
+		"INSERT INTO reservations (id, user_id, item_id, quantity, status, expires_at, confirmed_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+		"res_test_already_confirmed_1", "usr_106", "item_test_already_confirmed", 2, "CONFIRMED", now.Add(5*time.Minute), now,
+	)
+	require.NoError(t, err)
+
+	confirmReq := model.ConfirmRequest{ReservationID: "res_test_already_confirmed_1"}
+	jsonBytes, _ := json.Marshal(confirmReq)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/inventory/confirm", bytes.NewBuffer(jsonBytes))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
 func TestReserveStock_HighConcurrency(t *testing.T) {
 	db, _, _, _, _, router := setupTestDB(t)
 	if db == nil {

@@ -36,8 +36,8 @@ func NewDB(cfg *config.Config) (*DB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	db.SetMaxOpenConns(100)
-	db.SetMaxIdleConns(25)
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(10)
 
 	log.Println("Database connection established successfully.")
 	return &DB{db: db}, nil

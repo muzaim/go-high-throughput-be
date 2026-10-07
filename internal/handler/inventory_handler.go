@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"indico-test-be/internal/model"
@@ -115,6 +116,7 @@ func (h *InventoryHandler) handleServiceError(c *gin.Context, err error) {
 	case errors.Is(err, model.ErrInvalidQuantity):
 		h.respondError(c, http.StatusBadRequest, "INVALID_QUANTITY", "quantity must be greater than 0", nil)
 	default:
+		log.Printf("[ERROR] Unexpected server error: %v", err)
 		h.respondError(c, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "an unexpected error occurred", nil)
 	}
 }
